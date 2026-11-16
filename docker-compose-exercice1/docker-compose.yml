@@ -3,12 +3,20 @@ services:
     image: drupal:10-apache@sha256:aceb0ac0c0c1e9f102259771c0e4c946079082989065d1760cd1556f4e33ff50
     container_name: drupal
     restart: unless-stopped
-    security_opt:
-      - no_new_privileges:true
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt: 
+      - no-new-privileges:true
     cap_drop: ["ALL"]
-    #cap-add:
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     networks:
       - back_network
+      - front_network
     ports:
       - 8081:80
     volumes:
@@ -16,13 +24,26 @@ services:
       - drupal_modules:/var/www/html/modules
       - drupal_themes:/var/www/html/themes
       - drupal_profiles:/var/www/html/profiles
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          cpus: 0.25
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
       
   db:
     image: postgres:16@sha256:dd2bf3ce2dc83a81674cf7f217fcfd8a5009a4b325dda5b843bfee82a06cff6f
     container_name: drupal-db
     restart: unless-stopped
-    security_opt:
-     - no_new_privileges:true
+    security_opt: 
+      - no-new-privileges:true
     cap_drop: ["ALL"]
     cap_add:
       - CHOWN
@@ -38,13 +59,20 @@ services:
       POSTGRES_DB: postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          cpus: 0.25
+          memory: 128M
     healthcheck:
-      test: [“CMD”, “pg_isready”, “-U”, “postgres”]
+      test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
       
-    
 volumes:
   pgdata:
   drupal_sites:
@@ -54,4 +82,6 @@ volumes:
 
 
 networks:
+  front_network:
   back_network:
+    internal: true
